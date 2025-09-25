@@ -1,0 +1,34 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Data files (too large for GitHub)
+data/
+*.db
+*.sqlite
+*.csv
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/.
+
+# JetBrains IDE
+.idea/
+*.iws
+*.iml
+*.ipr
