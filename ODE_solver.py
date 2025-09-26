@@ -282,122 +282,278 @@ def compare_methods(solver: DifferentialEquationSolver, f: Callable, y0: float,
     plt.show()
 
 
-# Example usage and demonstration
-if __name__ == "__main__":
-    solver = DifferentialEquationSolver()
+def get_ode_input():
+    """
+    Get ODE input from the user interactively.
 
-    print("Differential Equation Solver Demonstration")
+    Returns:
+        ode_type: Type of ODE ('first_order', 'second_order', 'system')
+        f: Function defining the ODE
+        y0: Initial condition(s)
+        t_span: Time interval
+        params: Additional parameters
+    """
+    print("Differential Equation Solver")
     print("=" * 50)
 
-    # Example 1: Simple exponential growth
-    print("\n1. Exponential Growth: dy/dt = y, y(0) = 1")
+    # Get ODE type
+    print("\nSelect ODE type:")
+    print("1. First-order ODE (dy/dt = f(t, y))")
+    print("2. Second-order ODE (d²y/dt² = f(t, y, dy/dt))")
+    print("3. System of first-order ODEs")
+
+    ode_type_choice = input("Enter choice (1/2/3): ").strip()
+
+    if ode_type_choice == "1":
+        ode_type = "first_order"
+        print("\nFirst-order ODE: dy/dt = f(t, y)")
+        print("Enter the function f(t, y) as a Python expression using t and y as variables.")
+        print("Examples: 'y' for dy/dt = y, 't*y' for dy/dt = t*y, 'sin(t) + y' etc.")
+        ode_expr = input("f(t, y) = ").strip()
+
+        # Create the function from the expression
+        def f(t, y):
+            return eval(ode_expr, {"t": t, "y": y, "np": np, "sin": np.sin, "cos": np.cos,
+                                   "exp": np.exp, "log": np.log, "sqrt": np.sqrt})
+
+    elif ode_type_choice == "2":
+        ode_type = "second_order"
+        print("\nSecond-order ODE: d²y/dt² = f(t, y, dy/dt)")
+        print("Enter the function f(t, y, v) where v = dy/dt")
+        print("Examples: '-y' for harmonic oscillator, '-0.1*v - y' for damped oscillator")
+        ode_expr = input("f(t, y, v) = ").strip()
+
+        def f(t, y, v):
+            return eval(ode_expr, {"t": t, "y": y, "v": v, "np": np, "sin": np.sin, "cos": np.cos,
+                                   "exp": np.exp, "log": np.log, "sqrt": np.sqrt})
+
+    elif ode_type_choice == "3":
+        ode_type = "system"
+        print("\nSystem of first-order ODEs")
+        n_eqs = int(input("Number of equations: "))
+
+        print("Enter functions for dy_i/dt = f_i(t, y1, y2, ...)")
+        print("Use y[0], y[1], ... for variables")
+
+        ode_exprs = []
+        for i in range(n_eqs):
+            expr = input(f"dy_{i + 1}/dt = f_{i + 1}(t, y1, y2, ...) = ").strip()
+            ode_exprs.append(expr)
+
+        def f(t, y):
+            result = []
+            for expr in ode_exprs:
+                # Create a dictionary with all y components
+                vars_dict = {"t": t, "np": np, "sin": np.sin, "cos": np.cos,
+                             "exp": np.exp, "log": np.log, "sqrt": np.sqrt}
+                for j in range(len(y)):
+                    vars_dict[f"y{j + 1}"] = y[j]
+                    vars_dict[f"y[{j}]"] = y[j]
+
+                result.append(eval(expr, vars_dict))
+            return np.array(result)
+
+    else:
+        raise ValueError("Invalid choice. Please enter 1, 2, or 3.")
+
+    # Get initial conditions
+    print("\nInitial conditions:")
+    if ode_type == "first_order":
+        y0 = float(input("y(t0) = "))
+    elif ode_type == "second_order":
+        y0_val = float(input("y(t0) = "))
+        y0_deriv = float(input("y'(t0) = "))
+        y0 = (y0_val, y0_deriv)
+    else:  # system
+        y0 = []
+        for i in range(len(ode_exprs)):
+            val = float(input(f"y_{i + 1}(t0) = "))
+            y0.append(val)
+
+    # Get time interval
+    print("\nTime interval:")
+    t0 = float(input("Start time t0 = "))
+    tf = float(input("End time tf = "))
+    t_span = (t0, tf)
+
+    # Get method
+    print("\nNumerical method:")
+    print("1. Euler's method")
+    print("2. Heun's method (improved Euler)")
+    print("3. Runge-Kutta 4th order")
+    print("4. Adaptive Runge-Kutta (for first-order only)")
+
+    method_choice = input("Enter choice (1/2/3/4): ").strip()
+    method_map = {"1": "euler", "2": "heun", "3": "rk4", "4": "adaptive_rk"}
+    method = method_map.get(method_choice, "rk4")
+
+    # Get additional parameters
+    params = {}
+    if method != "adaptive_rk":
+        n_steps = int(input("Number of steps (default 100): ") or "100")
+        params["n_steps"] = n_steps
+    else:
+        tol = float(input("Tolerance (default 1e-6): ") or "1e-6")
+        params["tol"] = tol
+
+    return ode_type, f, y0, t_span, method, params
 
 
-    def exponential_growth(t, y):
-        return y
+def main():
+    """
+    Main function to run the differential equation solver interactively.
+    """
+    solver = DifferentialEquationSolver()
+
+    try:
+        # Get user input
+        ode_type, f, y0, t_span, method, params = get_ode_input()
+
+        # Solve the ODE
+        print(f"\nSolving ODE using {method} method...")
+
+        if ode_type == "first_order":
+            t, y = solver.solve_ode(f, y0, t_span, method, **params)
+            plot_solution(t, y, f"Solution: dy/dt = f(t, y)\nMethod: {method.upper()}")
+
+        elif ode_type == "second_order":
+            t, y, dy = solver.solve_second_order(f, y0, t_span, method, **params)
+
+            plt.figure(figsize=(12, 8))
+            plt.subplot(2, 1, 1)
+            plt.plot(t, y, 'b-', label='y(t)')
+            plt.title(f'Second-order ODE Solution\nMethod: {method.upper()}')
+            plt.ylabel('y(t)')
+            plt.legend()
+            plt.grid(True)
+
+            plt.subplot(2, 1, 2)
+            plt.plot(t, dy, 'r-', label="y'(t)")
+            plt.xlabel('t')
+            plt.ylabel("y'(t)")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+
+        else:  # system
+            t, y = solver.solve_system(f, y0, t_span, method, **params)
+
+            plt.figure(figsize=(12, 8))
+            for i in range(y.shape[1]):
+                plt.plot(t, y[:, i], label=f'y_{i + 1}(t)')
+            plt.title(f'System of ODEs Solution\nMethod: {method.upper()}')
+            plt.xlabel('t')
+            plt.ylabel('y(t)')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+
+        print("Solution completed successfully!")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        print("Please check your input and try again.")
 
 
-    def exact_exponential(t):
-        return np.exp(t)
+# Example usage and demonstration
+if __name__ == "__main__":
+    print("Differential Equation Solver")
+    print("=" * 50)
+
+    choice = input("Run interactive solver or examples? (i/e): ").strip().lower()
+
+    if choice == "i":
+        main()
+    else:
+        # Run the original examples
+        solver = DifferentialEquationSolver()
+
+        print("Differential Equation Solver Demonstration")
+        print("=" * 50)
+
+        # Example 1: Simple exponential growth
+        print("\n1. Exponential Growth: dy/dt = y, y(0) = 1")
 
 
-    t_span = (0, 2)
-    t, y = solver.solve_ode(exponential_growth, 1, t_span, method='rk4', n_steps=50)
-    plot_solution(t, y, "Exponential Growth", label="Numerical")
-
-    # Compare methods
-    compare_methods(solver, exponential_growth, 1, t_span, exact_exponential)
-
-    # Example 2: Harmonic oscillator (second-order)
-    print("\n2. Harmonic Oscillator: d²y/dt² + y = 0, y(0)=0, y'(0)=1")
+        def exponential_growth(t, y):
+            return y
 
 
-    def harmonic_oscillator(t, y, dy):
-        return -y  # d²y/dt² = -y
+        def exact_exponential(t):
+            return np.exp(t)
 
 
-    t, y, dy = solver.solve_second_order(harmonic_oscillator, (0, 1), (0, 4 * np.pi),
-                                         method='rk4', n_steps=200)
+        t_span = (0, 2)
+        t, y = solver.solve_ode(exponential_growth, 1, t_span, method='rk4', n_steps=50)
+        plot_solution(t, y, "Exponential Growth", label="Numerical")
 
-    plt.figure(figsize=(12, 8))
-    plt.subplot(2, 1, 1)
-    plt.plot(t, y, 'b-', label='Position')
-    plt.title('Harmonic Oscillator')
-    plt.ylabel('y(t)')
-    plt.legend()
-    plt.grid(True)
+        # Compare methods
+        compare_methods(solver, exponential_growth, 1, t_span, exact_exponential)
 
-    plt.subplot(2, 1, 2)
-    plt.plot(t, dy, 'r-', label='Velocity')
-    plt.xlabel('t')
-    plt.ylabel("y'(t)")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Example 3: Lotka-Volterra predator-prey model (system of ODEs)
-    print("\n3. Lotka-Volterra Predator-Prey Model")
+        # Example 2: Harmonic oscillator (second-order)
+        print("\n2. Harmonic Oscillator: d²y/dt² + y = 0, y(0)=0, y'(0)=1")
 
 
-    def lotka_volterra(t, z, alpha=1.1, beta=0.4, gamma=0.4, delta=0.1):
-        x, y = z  # x: prey, y: predator
-        dxdt = alpha * x - beta * x * y
-        dydt = delta * x * y - gamma * y
-        return np.array([dxdt, dydt])
+        def harmonic_oscillator(t, y, dy):
+            return -y  # d²y/dt² = -y
 
 
-    # Wrap for our solver (needs to accept t and z)
-    def lotka_volterra_wrapped(t, z):
-        return lotka_volterra(t, z)
+        t, y, dy = solver.solve_second_order(harmonic_oscillator, (0, 1), (0, 4 * np.pi),
+                                             method='rk4', n_steps=200)
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(2, 1, 1)
+        plt.plot(t, y, 'b-', label='Position')
+        plt.title('Harmonic Oscillator')
+        plt.ylabel('y(t)')
+        plt.legend()
+        plt.grid(True)
+
+        plt.subplot(2, 1, 2)
+        plt.plot(t, dy, 'r-', label='Velocity')
+        plt.xlabel('t')
+        plt.ylabel("y'(t)")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Example 3: Lotka-Volterra predator-prey model (system of ODEs)
+        print("\n3. Lotka-Volterra Predator-Prey Model")
 
 
-    t, z = solver.solve_system(lotka_volterra_wrapped, [10, 5], (0, 50),
-                               method='rk4', n_steps=1000)
-
-    plt.figure(figsize=(12, 8))
-    plt.plot(t, z[:, 0], 'g-', label='Prey (x)')
-    plt.plot(t, z[:, 1], 'r-', label='Predator (y)')
-    plt.title('Lotka-Volterra Predator-Prey Model')
-    plt.xlabel('Time')
-    plt.ylabel('Population')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Phase portrait
-    plt.figure(figsize=(10, 8))
-    plt.plot(z[:, 0], z[:, 1], 'b-')
-    plt.plot(z[0, 0], z[0, 1], 'go', markersize=8, label='Start')
-    plt.plot(z[-1, 0], z[-1, 1], 'ro', markersize=8, label='End')
-    plt.title('Phase Portrait: Predator vs Prey')
-    plt.xlabel('Prey Population')
-    plt.ylabel('Predator Population')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    # Example 4: Adaptive step size demonstration
-    print("\n4. Adaptive Step Size Demonstration: dy/dt = -100y, y(0)=1")
+        def lotka_volterra(t, z, alpha=1.1, beta=0.4, gamma=0.4, delta=0.1):
+            x, y = z  # x: prey, y: predator
+            dxdt = alpha * x - beta * x * y
+            dydt = delta * x * y - gamma * y
+            return np.array([dxdt, dydt])
 
 
-    def stiff_ode(t, y):
-        return -100 * y
+        # Wrap for our solver (needs to accept t and z)
+        def lotka_volterra_wrapped(t, z):
+            return lotka_volterra(t, z)
 
 
-    t_adaptive, y_adaptive = solver.solve_ode(stiff_ode, 1, (0, 1),
-                                              method='adaptive_rk', tol=1e-6)
-    t_fixed, y_fixed = solver.solve_ode(stiff_ode, 1, (0, 1),
-                                        method='rk4', n_steps=100)
+        t, z = solver.solve_system(lotka_volterra_wrapped, [10, 5], (0, 50),
+                                   method='rk4', n_steps=1000)
 
-    plt.figure(figsize=(12, 8))
-    plt.semilogy(t_adaptive, y_adaptive, 'b-', label='Adaptive RK (variable step)')
-    plt.semilogy(t_fixed, y_fixed, 'ro', label='RK4 (fixed step)')
-    plt.title('Adaptive vs Fixed Step Size for Stiff ODE')
-    plt.xlabel('t')
-    plt.ylabel('y(t) (log scale)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        plt.figure(figsize=(12, 8))
+        plt.plot(t, z[:, 0], 'g-', label='Prey (x)')
+        plt.plot(t, z[:, 1], 'r-', label='Predator (y)')
+        plt.title('Lotka-Volterra Predator-Prey Model')
+        plt.xlabel('Time')
+        plt.ylabel('Population')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
-    print(f"Adaptive method used {len(t_adaptive)} points")
-    print(f"Fixed step method used {len(t_fixed)} points")
+        # Phase portrait
+        plt.figure(figsize=(10, 8))
+        plt.plot(z[:, 0], z[:, 1], 'b-')
+        plt.plot(z[0, 0], z[0, 1], 'go', markersize=8, label='Start')
+        plt.plot(z[-1, 0], z[-1, 1], 'ro', markersize=8, label='End')
+        plt.title('Phase Portrait: Predator vs Prey')
+        plt.xlabel('Prey Population')
+        plt.ylabel('Predator Population')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
