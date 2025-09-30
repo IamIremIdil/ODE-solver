@@ -1,0 +1,5 @@
+- Will add UI / UX interface
+- 1) interactive or examples ?
+- 2) first order, second order, system of first order ODEs
+- Fix examples and better plots + examples don't work after the second
+- Add steps inbetween operations and explain
